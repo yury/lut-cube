@@ -26,7 +26,7 @@ mod tests {
     }
 
     #[test]
-    fn real() {
+    fn black_magic() {
         let mut r = std::io::BufReader::new(File::open("/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/VFX IO/Linear to Cineon Log.cube").unwrap());
         let lut = Lut::parse(&mut r).expect("lut");
         assert_eq!(lut.cube().dim(), 1);
