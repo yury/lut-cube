@@ -28,6 +28,8 @@ impl Collector {
             capacity,
         }
     }
+
+    #[inline]
     pub fn push(&mut self, rgb: &[f32; 3]) -> Result<Option<Box<Cube>>, Error> {
         let Some(c) = self.cube.as_mut() else {
             return Err(Error::CubeIsFull);
@@ -101,13 +103,17 @@ impl Lut {
         let mut domain_min: Option<[f32; 3]> = None;
         let mut domain_max: Option<[f32; 3]> = None;
 
-        let mut line = String::new();
-        while reader.read_line(&mut line)? > 0 {
+        let mut line = String::with_capacity(100);
+        loop {
+            line.clear();
+            if reader.read_line(&mut line)? == 0 {
+                return Err(Error::Eof);
+            }
             let len = line.len();
             if len < 2 {
-                line.clear();
                 continue;
             }
+
             // remove '\n' at the end
             let s = &line[..len - 1];
 
@@ -117,12 +123,10 @@ impl Lut {
                     comments.push_str("\n");
                 }
                 comments.push_str(s);
-                line.clear();
                 continue;
             }
 
             let Some((a, b)) = s.split_once(' ') else {
-                line.clear();
                 continue;
             };
 
@@ -152,7 +156,6 @@ impl Lut {
                         });
                     };
                 }
-                line.clear();
                 continue;
             }
 
@@ -218,9 +221,6 @@ impl Lut {
                     collector = Some(coll);
                 }
             }
-
-            line.clear();
         }
-        Err(Error::Eof)
     }
 }
