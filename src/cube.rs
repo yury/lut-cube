@@ -3,9 +3,9 @@ use crate::Error;
 pub struct InputRange(std::ops::RangeInclusive<f32>);
 
 pub struct Cube {
-    dim: u8,
-    size: u16,
-    input_range: Option<InputRange>,
+    pub(crate) dim: u8,
+    pub(crate) size: u16,
+    pub(crate) input_range: Option<InputRange>,
     pub(crate) rgbs: Box<[f32]>,
 }
 
