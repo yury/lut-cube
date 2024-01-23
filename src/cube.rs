@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::Result;
 
 pub struct InputRange(std::ops::RangeInclusive<f32>);
 
@@ -10,18 +10,14 @@ pub struct Cube {
 }
 
 impl TryFrom<&str> for InputRange {
-    type Error = crate::Error;
+    type Error = Box<dyn std::error::Error>;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self> {
         let Some((min, max)) = value.split_once(' ') else {
-            return Err(Error::InvalidInputRange(value.to_owned()));
+            return Err("invalid input range".into());
         };
-        let min: f32 = min
-            .parse()
-            .map_err(|_| Error::InvalidInputRange(value.to_owned()))?;
-        let max: f32 = max
-            .parse()
-            .map_err(|_| Error::InvalidInputRange(value.to_owned()))?;
+        let min: f32 = min.parse()?;
+        let max: f32 = max.parse()?;
         Ok(Self(min..=max))
     }
 }

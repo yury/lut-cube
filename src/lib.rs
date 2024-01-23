@@ -1,5 +1,4 @@
-mod error;
-pub use error::Error;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 mod cube;
 pub use cube::Cube;

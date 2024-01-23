@@ -1,6 +1,6 @@
-use std::io::BufRead;
+use std::io::{self, BufRead};
 
-use crate::{Cube, Error, InputRange};
+use crate::{Cube, InputRange, Result};
 
 pub struct Lut {
     title: Option<String>,
@@ -30,9 +30,9 @@ impl Collector {
     }
 
     #[inline]
-    pub fn push(&mut self, rgb: &[f32; 3]) -> Result<Option<Box<Cube>>, Error> {
+    pub fn push(&mut self, rgb: &[f32; 3]) -> Result<Option<Box<Cube>>> {
         let Some(c) = self.cube.as_mut() else {
-            return Err(Error::CubeIsFull);
+            return Err("Cube is full".into());
         };
         let len = self.len;
         let next = len + 3;
@@ -89,7 +89,7 @@ impl Lut {
 }
 
 impl Lut {
-    pub fn parse(reader: &mut impl BufRead) -> Result<Self, Error> {
+    pub fn parse(reader: &mut impl BufRead) -> Result<Self> {
         let mut rgb = [0.0f32; 3];
         let mut title = None;
         let mut in_video_range = false;
@@ -107,7 +107,7 @@ impl Lut {
         loop {
             line.clear();
             if reader.read_line(&mut line)? == 0 {
-                return Err(Error::Eof);
+                Err(io::Error::from(io::ErrorKind::UnexpectedEof))?;
             }
             let len = line.len();
             if len < 2 {
@@ -132,12 +132,12 @@ impl Lut {
 
             if let Some(coll) = collector.as_mut() {
                 let Some((g, b)) = b.split_once(' ') else {
-                    return Err(Error::InvalidRgb(line));
+                    return Err(format!("invalid rgb in line: {line}").into());
                 };
 
-                rgb[0] = a.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                rgb[1] = g.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                rgb[2] = b.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
+                rgb[0] = a.parse()?;
+                rgb[1] = g.parse()?;
+                rgb[2] = b.parse()?;
 
                 if let Some(completed_cube) = coll.push(&rgb)? {
                     if let Some(cube) = cube.take() {
@@ -180,20 +180,20 @@ impl Lut {
                 }
                 "LUT_1D_INPUT_RANGE" | "LUT_3D_INPUT_RANGE" => {
                     let Some(c) = cube.as_mut() else {
-                        return Err(Error::UnexpectedInputRange(line.clone()));
+                        return Err(format!("Unexpected input range: {line}").into());
                     };
                     c.set_input_range(Some(InputRange::try_from(b)?));
                 }
                 "DOMAIN_MIN" | "DOMAIN_MAX" => {
                     let Some((r, gb)) = b.split_once(' ') else {
-                        return Err(Error::InvalidRgb(line));
+                        return Err(format!("invalid rgb in line: {line}").into());
                     };
                     let Some((g, b)) = gb.split_once(' ') else {
-                        return Err(Error::InvalidRgb(line));
+                        return Err(format!("invalid rgb in line: {line}").into());
                     };
-                    rgb[0] = r.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                    rgb[1] = g.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                    rgb[2] = b.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
+                    rgb[0] = r.parse()?;
+                    rgb[1] = g.parse()?;
+                    rgb[2] = b.parse()?;
                     if a == "DOMAIN_MIN" {
                         domain_min = Some(rgb.clone());
                     } else {
@@ -202,19 +202,19 @@ impl Lut {
                 }
                 r => {
                     let Some((g, b)) = b.split_once(' ') else {
-                        return Err(Error::InvalidRgb(line));
+                        return Err(format!("invalid rgb in line: {line}").into());
                     };
 
-                    rgb[0] = r.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                    rgb[1] = g.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
-                    rgb[2] = b.parse().map_err(|_| Error::InvalidRgb(line.clone()))?;
+                    rgb[0] = r.parse()?;
+                    rgb[1] = g.parse()?;
+                    rgb[2] = b.parse()?;
 
                     let mut coll = if let Some(shaper) = shaper.take() {
                         Collector::with_cube(shaper)
                     } else if let Some(cube) = cube.take() {
                         Collector::with_cube(cube)
                     } else {
-                        return Err(Error::UnexpectedData);
+                        return Err(io::Error::from(io::ErrorKind::InvalidData).into());
                     };
 
                     coll.push(&rgb)?;
