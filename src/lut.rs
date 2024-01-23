@@ -120,7 +120,7 @@ impl Lut {
             // # Comment
             if s.as_bytes()[0] == b'#' {
                 if !comments.is_empty() {
-                    comments.push_str("\n");
+                    comments.push('\n');
                 }
                 comments.push_str(s);
                 continue;
@@ -195,9 +195,9 @@ impl Lut {
                     rgb[1] = g.parse()?;
                     rgb[2] = b.parse()?;
                     if a == "DOMAIN_MIN" {
-                        domain_min = Some(rgb.clone());
+                        domain_min = Some(rgb);
                     } else {
-                        domain_max = Some(rgb.clone());
+                        domain_max = Some(rgb);
                     }
                 }
                 r => {
