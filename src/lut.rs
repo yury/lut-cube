@@ -30,13 +30,13 @@ impl Collector {
     }
 
     #[inline]
-    pub fn push(&mut self, rgb: &[f32; 3]) -> Result<Option<Box<Cube>>> {
-        let Some(c) = self.cube.as_mut() else {
+    fn push(&mut self, rgb: &[f32]) -> Result<Option<Box<Cube>>> {
+        let Some(cube) = self.cube.as_mut() else {
             return Err("Cube is full".into());
         };
         let len = self.len;
         let next = len + 3;
-        c.rgbs[len..next].copy_from_slice(rgb.as_slice());
+        cube.rgbs[len..next].copy_from_slice(rgb);
         self.len = next;
         if next == self.capacity {
             Ok(Some(Box::new(self.cube.take().unwrap())))
@@ -47,42 +47,34 @@ impl Collector {
 }
 
 impl Lut {
-    #[inline]
-    pub fn title(&self) -> Option<&String> {
-        self.title.as_ref()
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
     }
 
-    #[inline]
-    pub fn comments(&self) -> &String {
+    pub fn comments(&self) -> &str {
         &self.comments
     }
 
-    #[inline]
     pub fn in_video_range(&self) -> bool {
         self.in_video_range
     }
 
-    #[inline]
     pub fn out_video_range(&self) -> bool {
         self.out_video_range
     }
 
-    #[inline]
     pub fn cube(&self) -> &Cube {
         &self.cube
     }
 
-    #[inline]
     pub fn shaper(&self) -> Option<&Cube> {
         self.shaper.as_ref()
     }
 
-    #[inline]
     pub fn domain_min(&self) -> Option<&[f32; 3]> {
         self.domain_min.as_ref()
     }
 
-    #[inline]
     pub fn domain_max(&self) -> Option<&[f32; 3]> {
         self.domain_max.as_ref()
     }

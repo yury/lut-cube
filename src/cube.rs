@@ -41,27 +41,22 @@ impl Cube {
         }
     }
 
-    #[inline]
     pub fn dim(&self) -> u8 {
         self.dim
     }
 
-    #[inline]
     pub fn size(&self) -> u16 {
         self.size
     }
 
-    #[inline]
     pub fn input_range(&self) -> Option<&InputRange> {
         self.input_range.as_ref()
     }
 
-    #[inline]
     pub fn set_input_range(&mut self, val: Option<InputRange>) {
         self.input_range = val;
     }
 
-    #[inline]
     pub fn r_len(&self) -> usize {
         self.rgbs.len()
     }
