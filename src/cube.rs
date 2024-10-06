@@ -60,4 +60,8 @@ impl Cube {
     pub fn r_len(&self) -> usize {
         self.rgbs.len()
     }
+
+    pub fn raw(&self) -> &[f32] {
+        &self.rgbs
+    }
 }
