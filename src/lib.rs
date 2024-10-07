@@ -40,4 +40,15 @@ mod tests {
         assert_eq!(shaper.size(), 4095);
         println!("comments:\n{}", lut.comments());
     }
+
+    // #[test]
+    // fn apple() {
+    //     let mut r = std::io::BufReader::new(
+    //         File::open("/Users/yury/Projects/yoml/multi/Luts/AppleLogToRec709-v1.0.cube").unwrap(),
+    //     );
+    //     let lut = Lut::parse(&mut r).expect("lut");
+    //     assert_eq!(lut.cube().dim(), 3);
+    //     assert_eq!(lut.cube().size(), 65);
+    //     println!("comments:\n{}", lut.comments());
+    // }
 }

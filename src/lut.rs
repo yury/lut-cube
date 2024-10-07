@@ -101,13 +101,11 @@ impl Lut {
             if reader.read_line(&mut line)? == 0 {
                 Err(io::Error::from(io::ErrorKind::UnexpectedEof))?;
             }
-            let len = line.len();
-            if len < 2 {
+            // remove '\n' and spaces at the end and start
+            let s = line.trim();
+            if s.is_empty() {
                 continue;
             }
-
-            // remove '\n' at the end
-            let s = &line[..len - 1];
 
             // # Comment
             if s.as_bytes()[0] == b'#' {
