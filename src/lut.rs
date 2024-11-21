@@ -91,6 +91,7 @@ impl Lut {
         let mut cube: Option<Cube> = None;
         let mut shaper: Option<Cube> = None;
         let mut collector: Option<Collector> = None;
+        let delimiter = &[' ', '\t'];
 
         let mut domain_min: Option<[f32; 3]> = None;
         let mut domain_max: Option<[f32; 3]> = None;
@@ -116,12 +117,12 @@ impl Lut {
                 continue;
             }
 
-            let Some((a, b)) = s.split_once(' ') else {
+            let Some((a, b)) = s.split_once(delimiter) else {
                 continue;
             };
 
             if let Some(coll) = collector.as_mut() {
-                let Some((g, b)) = b.split_once(' ') else {
+                let Some((g, b)) = b.split_once(delimiter) else {
                     return Err(format!("invalid rgb in line: {line}").into());
                 };
 
@@ -175,10 +176,10 @@ impl Lut {
                     c.set_input_range(Some(b.parse()?));
                 }
                 "DOMAIN_MIN" | "DOMAIN_MAX" => {
-                    let Some((r, gb)) = b.split_once(' ') else {
+                    let Some((r, gb)) = b.split_once(delimiter) else {
                         return Err(format!("invalid rgb in line: {line}").into());
                     };
-                    let Some((g, b)) = gb.split_once(' ') else {
+                    let Some((g, b)) = gb.split_once(delimiter) else {
                         return Err(format!("invalid rgb in line: {line}").into());
                     };
                     rgb[0] = r.parse()?;
@@ -191,7 +192,7 @@ impl Lut {
                     }
                 }
                 r => {
-                    let Some((g, b)) = b.split_once(' ') else {
+                    let Some((g, b)) = b.split_once(delimiter) else {
                         return Err(format!("invalid rgb in line: {line}").into());
                     };
 
