@@ -7,10 +7,7 @@ pub struct Cube {
     pub(crate) rgbs: Box<[f32]>,
 }
 
-pub(crate) fn parse_input_range(
-    s: &str,
-    delimiter: &[char],
-) -> Result<InputRange, Box<dyn std::error::Error>> {
+pub(crate) fn parse_input_range(s: &str, delimiter: &[char]) -> crate::Result<InputRange> {
     let Some((min, max)) = s.split_once(delimiter) else {
         return Err("invalid input range".into());
     };

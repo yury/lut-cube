@@ -30,12 +30,12 @@ impl Collector {
     }
 
     #[inline]
-    fn push(&mut self, rgb: &[f32]) -> Result<Option<Box<Cube>>> {
+    fn push<const N: usize>(&mut self, rgb: &[f32; N]) -> Result<Option<Box<Cube>>> {
         let Some(cube) = self.cube.as_mut() else {
             return Err("Cube is full".into());
         };
         let len = self.len;
-        let next = len + 3;
+        let next = len + N;
         cube.rgbs[len..next].copy_from_slice(rgb);
         self.len = next;
         if next == self.capacity {
