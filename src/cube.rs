@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-pub struct InputRange(std::ops::RangeInclusive<f32>);
+type InputRange = std::ops::RangeInclusive<f32>;
 
 pub struct Cube {
     pub(crate) dim: u8,
@@ -9,17 +7,14 @@ pub struct Cube {
     pub(crate) rgbs: Box<[f32]>,
 }
 
-impl FromStr for InputRange {
-    type Err = Box<dyn std::error::Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let Some((min, max)) = s.split_once(' ') else {
-            return Err("invalid input range".into());
-        };
-        let min: f32 = min.parse()?;
-        let max: f32 = max.parse()?;
-        Ok(Self(min..=max))
-    }
+pub(crate) fn parse_input_range(
+    s: &str,
+    delimiter: &[char],
+) -> Result<InputRange, Box<dyn std::error::Error>> {
+    let Some((min, max)) = s.split_once(delimiter) else {
+        return Err("invalid input range".into());
+    };
+    Ok(min.parse()?..=max.parse()?)
 }
 
 impl Cube {

@@ -2,7 +2,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 mod cube;
 pub use cube::Cube;
-pub use cube::InputRange;
 
 mod lut;
 pub use lut::Lut;

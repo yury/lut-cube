@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 
-use crate::{Cube, Result};
+use crate::{cube, Cube, Result};
 
 pub struct Lut {
     title: Option<String>,
@@ -173,7 +173,7 @@ impl Lut {
                     let Some(c) = cube.as_mut() else {
                         return Err(format!("Unexpected input range: {line}").into());
                     };
-                    c.set_input_range(Some(b.parse()?));
+                    c.set_input_range(Some(cube::parse_input_range(b, delimiter)?));
                 }
                 "DOMAIN_MIN" | "DOMAIN_MAX" => {
                     let Some((r, gb)) = b.split_once(delimiter) else {
