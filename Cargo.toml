@@ -5,6 +5,7 @@ edition = "2021"
 description = ".cube files parser"
 license-file = "LICENSE"
 keywords = ["lut", "graphics", "cube", "3Dlut"]
+repository = "https://github.com/yury/lut-cube"
 
 [features]
 
