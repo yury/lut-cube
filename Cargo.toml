@@ -2,6 +2,9 @@
 name = "lut-cube"
 version = "0.1.0"
 edition = "2021"
+description = ".cube files parser"
+license-file = "LICENSE"
+keywords = ["lut", "graphics", "3D", "1D", "cube", "3D lut"]
 
 [features]
 
