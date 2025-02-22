@@ -1,7 +1,7 @@
 [package]
 name = "lut-cube"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = ".cube files parser"
 license-file = "LICENSE"
 keywords = ["lut", "graphics", "cube", "3Dlut"]
