@@ -1,0 +1,68 @@
+name: Benchmarks
+
+# This workflow runs benchmarks on the crate.
+# It is disabled by default to save CI time and cost.
+# To enable, uncomment the 'on' section or manually trigger via workflow_dispatch.
+
+on:
+  # Uncomment to run on push to main:
+  # push:
+  #   branches: [ main ]
+  
+  # Uncomment to run on pull requests:
+  # pull_request:
+  #   branches: [ main ]
+  
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-bench-
+          ${{ runner.os }}-cargo-
+    
+    - name: Run benchmarks
+      run: cargo bench --verbose
+    
+    - name: Archive benchmark results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: criterion-results
+        path: target/criterion/
+        retention-days: 30
+    
+    - name: Generate benchmark summary
+      if: always()
+      run: |
+        echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Benchmark artifacts have been uploaded. Download them to view detailed results." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Platform Information" >> $GITHUB_STEP_SUMMARY
+        echo "- Runner: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
+        echo "- Architecture: x86_64" >> $GITHUB_STEP_SUMMARY
+        echo "- AVX2 Support: Available on modern GitHub runners" >> $GITHUB_STEP_SUMMARY

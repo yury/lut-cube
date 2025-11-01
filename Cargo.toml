@@ -8,8 +8,17 @@ keywords = ["lut", "graphics", "cube", "3Dlut"]
 repository = "https://github.com/yury/lut-cube"
 
 [features]
-
+simd = []
+rayon = ["dep:rayon"]
 
 [dependencies]
+rayon = { version = "1.10", optional = true }
 
+[dev-dependencies]
+criterion = "0.5"
+rand = "0.8"
+
+[[bench]]
+name = "lut_cube"
+harness = false
 

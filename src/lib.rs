@@ -6,6 +6,9 @@ pub use cube::Cube;
 mod lut;
 pub use lut::Lut;
 
+mod optimized;
+pub use optimized::{apply_lut, apply_lut_auto};
+
 #[cfg(test)]
 mod tests {
     use std::fs::File;
