@@ -7,10 +7,11 @@ Supports 1D, 3D with optional 1D shaper.
 ## Features
 
 - **LUT Parsing**: Parse .cube files with 1D, 3D LUTs and optional 1D shapers
-- **LUT Application**: High-performance LUT application with SIMD optimizations
-  - x86_64: AVX2 support (runtime detected)
-  - aarch64: NEON support
+- **LUT Application**: High-performance LUT application with optimizations
+  - x86_64: Aggressive loop unrolling for compiler auto-vectorization (AVX2)
+  - aarch64: Aggressive loop unrolling for compiler auto-vectorization (NEON)
   - Portable scalar fallback for all platforms
+  - Uses unsafe for bounds check elimination in hot paths
 
 ## Usage
 

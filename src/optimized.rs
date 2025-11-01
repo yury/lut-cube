@@ -7,6 +7,7 @@
 ///
 /// This is the baseline implementation that uses basic loop unrolling
 /// for better performance while remaining completely safe.
+/// Exported for testing and benchmarking purposes.
 ///
 /// # Arguments
 /// * `src` - Source byte array (must have same length as dst)
@@ -16,7 +17,8 @@
 /// # Panics
 /// Panics if src and dst have different lengths.
 #[inline]
-pub fn apply_lut_basic(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
+#[allow(dead_code)]
+fn apply_lut_basic(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
     assert_eq!(src.len(), dst.len(), "src and dst must have same length");
     
     let len = src.len();
@@ -40,44 +42,46 @@ pub fn apply_lut_basic(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
 }
 
 #[cfg(target_arch = "x86_64")]
-/// Apply a 1D LUT using x86_64 AVX2 SIMD instructions.
+/// Apply a 1D LUT using an optimized scalar implementation.
 ///
-/// This function uses AVX2 shuffle instructions to perform parallel LUT lookups.
-/// Falls back to SSE2 if processing tail elements that don't fit in 32-byte chunks.
-///
-/// # Safety
-/// This function uses unsafe AVX2 intrinsics. It's safe to call because:
-/// - All memory accesses are bounds-checked before the unsafe block
-/// - AVX2 availability is checked by the caller via runtime feature detection
-/// - Alignment requirements are handled by the intrinsics
+/// Note: True SIMD optimization for arbitrary 256-entry LUTs is complex because
+/// x86 shuffle instructions (pshufb) work with 16-entry tables. While it's possible
+/// to implement using multiple passes with nibble extraction, the overhead often
+/// exceeds the benefit for random LUT values. This implementation uses aggressive
+/// loop unrolling which the compiler can auto-vectorize.
 ///
 /// # Arguments
 /// * `src` - Source byte array (must have same length as dst)
 /// * `dst` - Destination byte array (must have same length as src)
 /// * `lut` - 256-entry lookup table
-#[target_feature(enable = "avx2")]
-unsafe fn apply_lut_x86_avx2_impl(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
+#[inline]
+fn apply_lut_x86_impl(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
     let len = src.len();
-    let avx_chunks = len / 32;
-    let processed = avx_chunks * 32;
+    let chunks = len / 16;
+    let processed = chunks * 16;
     
-    // Note: Full 256-entry LUT with arbitrary values requires a byte-by-byte approach
-    // or a more complex shuffle-based implementation. For simplicity and correctness,
-    // we process in chunks but with individual lookups.
-    // Future optimization: Use pshufb with multiple passes for nibble-based LUT.
-    
-    // Process 32 bytes at a time with AVX2
-    for i in 0..avx_chunks {
-        let idx = i * 32;
-        
-        // For each byte, we need to look it up in the LUT
-        // AVX2 doesn't have a direct byte-indexed gather, so we'll do this byte-by-byte
-        // within the SIMD register or use a more creative approach.
-        
-        // Process 32 bytes with explicit lookups
-        // This still benefits from better cache locality and loop unrolling
-        for j in 0..32 {
-            dst[idx + j] = lut[src[idx + j] as usize];
+    // Process 16 bytes at a time with aggressive unrolling
+    // The compiler can auto-vectorize this with AVX2 if beneficial
+    for i in 0..chunks {
+        let idx = i * 16;
+        unsafe {
+            // Use unsafe for bounds check elimination
+            *dst.get_unchecked_mut(idx + 0) = *lut.get_unchecked(*src.get_unchecked(idx + 0) as usize);
+            *dst.get_unchecked_mut(idx + 1) = *lut.get_unchecked(*src.get_unchecked(idx + 1) as usize);
+            *dst.get_unchecked_mut(idx + 2) = *lut.get_unchecked(*src.get_unchecked(idx + 2) as usize);
+            *dst.get_unchecked_mut(idx + 3) = *lut.get_unchecked(*src.get_unchecked(idx + 3) as usize);
+            *dst.get_unchecked_mut(idx + 4) = *lut.get_unchecked(*src.get_unchecked(idx + 4) as usize);
+            *dst.get_unchecked_mut(idx + 5) = *lut.get_unchecked(*src.get_unchecked(idx + 5) as usize);
+            *dst.get_unchecked_mut(idx + 6) = *lut.get_unchecked(*src.get_unchecked(idx + 6) as usize);
+            *dst.get_unchecked_mut(idx + 7) = *lut.get_unchecked(*src.get_unchecked(idx + 7) as usize);
+            *dst.get_unchecked_mut(idx + 8) = *lut.get_unchecked(*src.get_unchecked(idx + 8) as usize);
+            *dst.get_unchecked_mut(idx + 9) = *lut.get_unchecked(*src.get_unchecked(idx + 9) as usize);
+            *dst.get_unchecked_mut(idx + 10) = *lut.get_unchecked(*src.get_unchecked(idx + 10) as usize);
+            *dst.get_unchecked_mut(idx + 11) = *lut.get_unchecked(*src.get_unchecked(idx + 11) as usize);
+            *dst.get_unchecked_mut(idx + 12) = *lut.get_unchecked(*src.get_unchecked(idx + 12) as usize);
+            *dst.get_unchecked_mut(idx + 13) = *lut.get_unchecked(*src.get_unchecked(idx + 13) as usize);
+            *dst.get_unchecked_mut(idx + 14) = *lut.get_unchecked(*src.get_unchecked(idx + 14) as usize);
+            *dst.get_unchecked_mut(idx + 15) = *lut.get_unchecked(*src.get_unchecked(idx + 15) as usize);
         }
     }
     
@@ -88,63 +92,57 @@ unsafe fn apply_lut_x86_avx2_impl(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
 }
 
 #[cfg(target_arch = "x86_64")]
-/// Apply a 1D LUT using x86_64 SIMD with runtime feature detection.
+/// Apply a 1D LUT using x86_64 optimized implementation.
 ///
-/// Uses AVX2 if available, otherwise falls back to scalar implementation.
+/// This uses an aggressively unrolled loop that the compiler can auto-vectorize
+/// when AVX2 is available at compile time.
 pub fn apply_lut_x86_avx2(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
     assert_eq!(src.len(), dst.len(), "src and dst must have same length");
-    
-    if is_x86_feature_detected!("avx2") {
-        // SAFETY: We've verified AVX2 is available via feature detection
-        unsafe {
-            apply_lut_x86_avx2_impl(src, dst, lut);
-        }
-    } else {
-        // Fallback to basic implementation
-        apply_lut_basic(src, dst, lut);
-    }
+    apply_lut_x86_impl(src, dst, lut);
 }
 
 #[cfg(target_arch = "aarch64")]
-/// Apply a 1D LUT using ARM NEON SIMD instructions.
+/// Apply a 1D LUT using ARM NEON optimized implementation.
 ///
-/// This function uses NEON for parallel processing of bytes.
-///
-/// # Safety
-/// This function uses unsafe NEON intrinsics. It's safe to call because:
-/// - All memory accesses are bounds-checked
-/// - NEON is always available on aarch64
-/// - Alignment requirements are handled by the intrinsics
+/// Note: True SIMD optimization for arbitrary 256-entry LUTs is complex because
+/// NEON's vtbl instruction works with 32-64 entry tables. While it's possible
+/// to implement using multiple vtbl passes with byte range checks, the overhead
+/// often exceeds the benefit. This implementation uses aggressive loop unrolling
+/// which the compiler can auto-vectorize with NEON.
 ///
 /// # Arguments
 /// * `src` - Source byte array (must have same length as dst)
 /// * `dst` - Destination byte array (must have same length as src)
 /// * `lut` - 256-entry lookup table
 pub fn apply_lut_aarch64_neon(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
-    #[cfg(target_arch = "aarch64")]
-    use std::arch::aarch64::*;
-    
     assert_eq!(src.len(), dst.len(), "src and dst must have same length");
     
     let len = src.len();
-    let neon_chunks = len / 16;
-    let processed = neon_chunks * 16;
+    let chunks = len / 16;
+    let processed = chunks * 16;
     
-    // NEON processes 16 bytes at a time
-    // For LUT application, we need to look up each byte individually
-    // NEON has vtbl (vector table lookup) instructions that can help
-    
-    // Process 16 bytes at a time
-    for i in 0..neon_chunks {
+    // Process 16 bytes at a time with aggressive unrolling
+    // The compiler can auto-vectorize this with NEON if beneficial
+    for i in 0..chunks {
         let idx = i * 16;
-        
-        // For correct LUT application, we need to handle the full 256-entry table
-        // NEON's vtbl can only handle 32 entries (2 registers) or 64 entries (4 registers)
-        // For a 256-entry LUT, we need a different approach
-        
-        // Let's use byte-by-byte within SIMD for now
-        for j in 0..16 {
-            dst[idx + j] = lut[src[idx + j] as usize];
+        unsafe {
+            // Use unsafe for bounds check elimination
+            *dst.get_unchecked_mut(idx + 0) = *lut.get_unchecked(*src.get_unchecked(idx + 0) as usize);
+            *dst.get_unchecked_mut(idx + 1) = *lut.get_unchecked(*src.get_unchecked(idx + 1) as usize);
+            *dst.get_unchecked_mut(idx + 2) = *lut.get_unchecked(*src.get_unchecked(idx + 2) as usize);
+            *dst.get_unchecked_mut(idx + 3) = *lut.get_unchecked(*src.get_unchecked(idx + 3) as usize);
+            *dst.get_unchecked_mut(idx + 4) = *lut.get_unchecked(*src.get_unchecked(idx + 4) as usize);
+            *dst.get_unchecked_mut(idx + 5) = *lut.get_unchecked(*src.get_unchecked(idx + 5) as usize);
+            *dst.get_unchecked_mut(idx + 6) = *lut.get_unchecked(*src.get_unchecked(idx + 6) as usize);
+            *dst.get_unchecked_mut(idx + 7) = *lut.get_unchecked(*src.get_unchecked(idx + 7) as usize);
+            *dst.get_unchecked_mut(idx + 8) = *lut.get_unchecked(*src.get_unchecked(idx + 8) as usize);
+            *dst.get_unchecked_mut(idx + 9) = *lut.get_unchecked(*src.get_unchecked(idx + 9) as usize);
+            *dst.get_unchecked_mut(idx + 10) = *lut.get_unchecked(*src.get_unchecked(idx + 10) as usize);
+            *dst.get_unchecked_mut(idx + 11) = *lut.get_unchecked(*src.get_unchecked(idx + 11) as usize);
+            *dst.get_unchecked_mut(idx + 12) = *lut.get_unchecked(*src.get_unchecked(idx + 12) as usize);
+            *dst.get_unchecked_mut(idx + 13) = *lut.get_unchecked(*src.get_unchecked(idx + 13) as usize);
+            *dst.get_unchecked_mut(idx + 14) = *lut.get_unchecked(*src.get_unchecked(idx + 14) as usize);
+            *dst.get_unchecked_mut(idx + 15) = *lut.get_unchecked(*src.get_unchecked(idx + 15) as usize);
         }
     }
     
@@ -157,10 +155,13 @@ pub fn apply_lut_aarch64_neon(src: &[u8], dst: &mut [u8], lut: &[u8; 256]) {
 /// Apply a 1D LUT with automatic selection of the best available implementation.
 ///
 /// This is the main public API that automatically selects the best implementation
-/// based on the current platform and available CPU features:
-/// - x86_64: Uses AVX2 if available, otherwise scalar
-/// - aarch64: Uses NEON
-/// - Other platforms: Uses scalar implementation
+/// based on the current platform:
+/// - x86_64: Optimized implementation with aggressive loop unrolling (compiler can auto-vectorize with AVX2)
+/// - aarch64: Optimized implementation with aggressive loop unrolling (compiler can auto-vectorize with NEON)
+/// - Other platforms: Safe scalar implementation with loop unrolling
+///
+/// Note: Direct SIMD intrinsics for arbitrary 256-entry LUTs are complex and often
+/// provide minimal benefit over compiler auto-vectorization for this use case.
 ///
 /// # Arguments
 /// * `src` - Source byte array
