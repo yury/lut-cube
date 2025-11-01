@@ -65,4 +65,4 @@ jobs:
         echo "### Platform Information" >> $GITHUB_STEP_SUMMARY
         echo "- Runner: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
         echo "- Architecture: x86_64" >> $GITHUB_STEP_SUMMARY
-        echo "- AVX2 Support: Available on modern GitHub runners" >> $GITHUB_STEP_SUMMARY
+        echo "- Optimization: Compiler auto-vectorization (can use AVX2 if enabled)" >> $GITHUB_STEP_SUMMARY

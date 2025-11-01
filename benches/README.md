@@ -47,13 +47,15 @@ Measures performance with different memory alignments:
 - **unaligned_1**: Buffers offset by 1 byte
 - **unaligned_7**: Buffers offset by 7 bytes
 
-## SIMD Optimizations
+## Optimizations
 
 The `apply_lut_auto` function automatically selects the best implementation:
 
-- **x86_64**: Uses AVX2 instructions when available (detected at runtime via `is_x86_feature_detected!("avx2")`), falls back to scalar
-- **aarch64**: Uses ARM NEON instructions (always available on this architecture)
-- **Other platforms**: Uses optimized scalar implementation with loop unrolling
+- **x86_64**: Aggressive loop unrolling with bounds check elimination (compiler auto-vectorizes with AVX2 when target supports it)
+- **aarch64**: Aggressive loop unrolling with bounds check elimination (compiler auto-vectorizes with NEON when target supports it)
+- **Other platforms**: Safe scalar implementation with loop unrolling
+
+Note: Implementation uses compile-time target detection (`#[cfg(target_arch)]`) rather than runtime feature detection for simplicity and performance.
 
 ## Benchmark Results
 
