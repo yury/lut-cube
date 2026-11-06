@@ -1,16 +1,22 @@
 use std::io::{self, BufRead};
 
-use crate::{cube, Cube, Result};
+use crate::{Cube, Result, cube};
 
-pub struct Lut {
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Meta {
     title: Option<String>,
     comments: String,
     in_video_range: bool,
     out_video_range: bool,
-    cube: Cube,
-    shaper: Option<Cube>,
     domain_min: Option<[f32; 3]>,
     domain_max: Option<[f32; 3]>,
+    size: Option<u16>,
+}
+
+pub struct Lut {
+    meta: Meta,
+    cube: Cube,
+    shaper: Option<Cube>,
 }
 
 struct Collector {
@@ -46,7 +52,12 @@ impl Collector {
     }
 }
 
-impl Lut {
+impl Meta {
+    /// The size declared by `LUT_3D_SIZE`, or `None` for a 1D-only LUT.
+    pub fn size(&self) -> Option<u16> {
+        self.size
+    }
+
     pub fn title(&self) -> Option<&str> {
         self.title.as_deref()
     }
@@ -63,6 +74,73 @@ impl Lut {
         self.out_video_range
     }
 
+    pub fn domain_min(&self) -> Option<&[f32; 3]> {
+        self.domain_min.as_ref()
+    }
+
+    pub fn domain_max(&self) -> Option<&[f32; 3]> {
+        self.domain_max.as_ref()
+    }
+
+    fn parse_line(&mut self, s: &str, delimiter: &[char]) -> Result<bool> {
+        if s.is_empty() {
+            return Ok(true);
+        }
+        if s.starts_with('#') {
+            if !self.comments.is_empty() {
+                self.comments.push('\n');
+            }
+            self.comments.push_str(s);
+            return Ok(true);
+        }
+        let Some((key, value)) = s.split_once(delimiter) else {
+            return Ok(false);
+        };
+        match key {
+            "TITLE" => self.title = Some(value.to_owned()),
+            "LUT_IN_VIDEO_RANGE" => self.in_video_range = true,
+            "LUT_OUT_VIDEO_RANGE" => self.out_video_range = true,
+            "DOMAIN_MIN" | "DOMAIN_MAX" => {
+                let Some((r, gb)) = value.split_once(delimiter) else {
+                    return Err(format!("invalid rgb in line: {s}").into());
+                };
+                let Some((g, b)) = gb.split_once(delimiter) else {
+                    return Err(format!("invalid rgb in line: {s}").into());
+                };
+                let rgb = [r.parse()?, g.parse()?, b.parse()?];
+                if key == "DOMAIN_MIN" {
+                    self.domain_min = Some(rgb);
+                } else {
+                    self.domain_max = Some(rgb);
+                }
+            }
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+}
+
+impl Lut {
+    pub fn meta(&self) -> &Meta {
+        &self.meta
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.meta.title()
+    }
+
+    pub fn comments(&self) -> &str {
+        self.meta.comments()
+    }
+
+    pub fn in_video_range(&self) -> bool {
+        self.meta.in_video_range()
+    }
+
+    pub fn out_video_range(&self) -> bool {
+        self.meta.out_video_range()
+    }
+
     pub fn cube(&self) -> &Cube {
         &self.cube
     }
@@ -72,29 +150,49 @@ impl Lut {
     }
 
     pub fn domain_min(&self) -> Option<&[f32; 3]> {
-        self.domain_min.as_ref()
+        self.meta.domain_min()
     }
 
     pub fn domain_max(&self) -> Option<&[f32; 3]> {
-        self.domain_max.as_ref()
+        self.meta.domain_max()
     }
-}
 
-impl Lut {
+    /// Parses header metadata without allocating cubes or parsing sample values.
+    /// Stops after reading the first sample line, or at the end of the reader.
+    /// Comments following sample data are not included.
+    pub fn parse_meta(reader: &mut impl BufRead) -> Result<Meta> {
+        let mut meta = Meta::default();
+        let mut line = String::with_capacity(100);
+        let delimiter = &[' ', '\t'];
+        loop {
+            line.clear();
+            if reader.read_line(&mut line)? == 0 {
+                return Ok(meta);
+            }
+            let s = line.trim();
+            if meta.parse_line(s, delimiter)? {
+                continue;
+            }
+            let key = s.split_once(delimiter).map_or(s, |(key, _)| key);
+            match key {
+                "LUT_3D_SIZE" => {
+                    let (_, value) = s.split_once(delimiter).ok_or("missing LUT_3D_SIZE value")?;
+                    meta.size = Some(value.parse()?);
+                }
+                "LUT_1D_SIZE" | "LUT_1D_INPUT_RANGE" | "LUT_3D_INPUT_RANGE" => {}
+                _ => return Ok(meta),
+            }
+        }
+    }
+
     pub fn parse(reader: &mut impl BufRead) -> Result<Self> {
         let mut rgb = [0.0f32; 3];
-        let mut title = None;
-        let mut in_video_range = false;
-        let mut out_video_range = false;
-        let mut comments = String::new();
+        let mut meta = Meta::default();
         let mut possible_shaper = false;
         let mut cube: Option<Cube> = None;
         let mut shaper: Option<Cube> = None;
         let mut collector: Option<Collector> = None;
         let delimiter = &[' ', '\t'];
-
-        let mut domain_min: Option<[f32; 3]> = None;
-        let mut domain_max: Option<[f32; 3]> = None;
 
         let mut line = String::with_capacity(100);
         loop {
@@ -104,16 +202,9 @@ impl Lut {
             }
             // remove '\n' and spaces at the end and start
             let s = line.trim();
-            if s.is_empty() {
-                continue;
-            }
-
-            // # Comment
-            if s.as_bytes()[0] == b'#' {
-                if !comments.is_empty() {
-                    comments.push('\n');
-                }
-                comments.push_str(s);
+            if (s.is_empty() || s.starts_with('#') || collector.is_none())
+                && meta.parse_line(s, delimiter)?
+            {
                 continue;
             }
 
@@ -136,14 +227,9 @@ impl Lut {
                         collector = Some(Collector::with_cube(cube));
                     } else {
                         return Ok(Self {
-                            title,
-                            comments,
-                            in_video_range,
-                            out_video_range,
+                            meta,
                             cube: *completed_cube,
                             shaper,
-                            domain_min,
-                            domain_max,
                         });
                     };
                 }
@@ -151,9 +237,6 @@ impl Lut {
             }
 
             match a {
-                "TITLE" => title = Some(b.to_owned()),
-                "LUT_IN_VIDEO_RANGE" => in_video_range = true,
-                "LUT_OUT_VIDEO_RANGE" => out_video_range = true,
                 "LUT_1D_SIZE" if possible_shaper => {
                     shaper = cube.take();
                     cube = Some(Cube::one_d(b.parse()?));
@@ -162,34 +245,19 @@ impl Lut {
                     possible_shaper = true;
                     cube = Some(Cube::one_d(b.parse()?));
                 }
-                "LUT_3D_SIZE" if possible_shaper => {
-                    shaper = cube.take();
-                    cube = Some(Cube::three_d(b.parse()?));
-                }
                 "LUT_3D_SIZE" => {
-                    cube = Some(Cube::three_d(b.parse()?));
+                    let size = b.parse()?;
+                    meta.size = Some(size);
+                    if possible_shaper {
+                        shaper = cube.take();
+                    }
+                    cube = Some(Cube::three_d(size));
                 }
                 "LUT_1D_INPUT_RANGE" | "LUT_3D_INPUT_RANGE" => {
                     let Some(c) = cube.as_mut() else {
                         return Err(format!("Unexpected input range: {line}").into());
                     };
                     c.set_input_range(Some(cube::parse_input_range(b, delimiter)?));
-                }
-                "DOMAIN_MIN" | "DOMAIN_MAX" => {
-                    let Some((r, gb)) = b.split_once(delimiter) else {
-                        return Err(format!("invalid rgb in line: {line}").into());
-                    };
-                    let Some((g, b)) = gb.split_once(delimiter) else {
-                        return Err(format!("invalid rgb in line: {line}").into());
-                    };
-                    rgb[0] = r.parse()?;
-                    rgb[1] = g.parse()?;
-                    rgb[2] = b.parse()?;
-                    if a == "DOMAIN_MIN" {
-                        domain_min = Some(rgb);
-                    } else {
-                        domain_max = Some(rgb);
-                    }
                 }
                 r => {
                     let Some((g, b)) = b.split_once(delimiter) else {
