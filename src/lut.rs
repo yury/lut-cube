@@ -13,6 +13,35 @@ pub struct Meta {
     size: Option<u16>,
 }
 
+/// Maximum declared sizes accepted by full parsing, checked before allocating each table.
+/// A zero limit disables that table dimension, including a 1D shaper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseLimits {
+    /// Maximum entry count for a 1D table or shaper.
+    pub max_1d_size: u16,
+    /// Maximum edge length of a 3D table.
+    pub max_3d_size: u16,
+}
+
+impl Default for ParseLimits {
+    fn default() -> Self {
+        Self {
+            max_1d_size: u16::MAX,
+            max_3d_size: u16::MAX,
+        }
+    }
+}
+
+impl ParseLimits {
+    fn size(value: &str, limit: u16, directive: &str) -> Result<u16> {
+        let size = value.parse()?;
+        if size < 2 || size > limit {
+            return Err(format!("{directive} {size} outside allowed range 2..={limit}").into());
+        }
+        Ok(size)
+    }
+}
+
 pub struct Lut {
     meta: Meta,
     cube: Cube,
@@ -185,7 +214,17 @@ impl Lut {
         }
     }
 
+    /// Parses a LUT with the format's representable size limits.
+    /// Use [`Self::parse_with_limits`] to cap table allocations for untrusted input.
     pub fn parse(reader: &mut impl BufRead) -> Result<Self> {
+        Self::parse_with_limits(reader, ParseLimits::default())
+    }
+
+    /// Parses samples and metadata in one pass, checking every size declaration before
+    /// allocating a table. Limits apply to both standalone tables and optional shapers.
+    /// Table sizes must be at least 2; setting a limit to 0 disallows that dimension.
+    /// Metadata-only parsing remains unrestricted because it does not allocate tables.
+    pub fn parse_with_limits(reader: &mut impl BufRead, limits: ParseLimits) -> Result<Self> {
         let mut rgb = [0.0f32; 3];
         let mut meta = Meta::default();
         let mut possible_shaper = false;
@@ -238,15 +277,17 @@ impl Lut {
 
             match a {
                 "LUT_1D_SIZE" if possible_shaper => {
+                    let size = ParseLimits::size(b, limits.max_1d_size, a)?;
                     shaper = cube.take();
-                    cube = Some(Cube::one_d(b.parse()?));
+                    cube = Some(Cube::one_d(size));
                 }
                 "LUT_1D_SIZE" => {
+                    let size = ParseLimits::size(b, limits.max_1d_size, a)?;
                     possible_shaper = true;
-                    cube = Some(Cube::one_d(b.parse()?));
+                    cube = Some(Cube::one_d(size));
                 }
                 "LUT_3D_SIZE" => {
-                    let size = b.parse()?;
+                    let size = ParseLimits::size(b, limits.max_3d_size, a)?;
                     meta.size = Some(size);
                     if possible_shaper {
                         shaper = cube.take();

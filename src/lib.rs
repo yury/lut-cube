@@ -4,7 +4,7 @@ mod cube;
 pub use cube::Cube;
 
 mod lut;
-pub use lut::{Lut, Meta};
+pub use lut::{Lut, Meta, ParseLimits};
 
 #[cfg(test)]
 mod tests {
@@ -96,6 +96,100 @@ mod tests {
         for source in ["DOMAIN_MIN 0 1\n", "DOMAIN_MAX 0 invalid 1\n"] {
             assert!(Lut::parse_meta(&mut source.as_bytes()).is_err());
             assert!(Lut::parse(&mut source.as_bytes()).is_err());
+        }
+    }
+
+    #[test]
+    fn limits_reject_sizes_before_reading_samples() {
+        let limits = crate::ParseLimits {
+            max_1d_size: 4,
+            max_3d_size: 2,
+        };
+        for header in [
+            "LUT_3D_SIZE 65535\n",
+            "LUT_1D_SIZE 65535\n",
+            "LUT_3D_SIZE 3\n",
+            "LUT_1D_SIZE 5\n",
+            "LUT_1D_SIZE 2\nLUT_3D_SIZE 3\n",
+            "LUT_3D_SIZE 2\nLUT_1D_SIZE 5\n",
+            "LUT_1D_SIZE 2\nLUT_1D_SIZE 5\n",
+            "LUT_3D_SIZE 2\nLUT_3D_SIZE 3\n",
+        ] {
+            let source = format!("{header}samples must not be read\n");
+            let mut reader = source.as_bytes();
+            let error = Lut::parse_with_limits(&mut reader, limits).err().unwrap();
+            assert!(
+                error.to_string().contains("outside allowed range"),
+                "{header}: {error}"
+            );
+            assert_eq!(reader, b"samples must not be read\n", "{header}");
+        }
+    }
+
+    #[test]
+    fn limits_accept_boundaries_and_preserve_metadata_and_shapers() {
+        let limits = crate::ParseLimits {
+            max_1d_size: 2,
+            max_3d_size: 2,
+        };
+        let table = "0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
+        for header in [
+            "LUT_3D_SIZE 2\n",
+            "LUT_1D_SIZE 2\nLUT_3D_SIZE 2\n0 0 0\n1 1 1\n",
+        ] {
+            let source = format!("TITLE Bounded\n{header}{table}");
+            let bounded = Lut::parse_with_limits(&mut source.as_bytes(), limits).unwrap();
+            let full = Lut::parse(&mut source.as_bytes()).unwrap();
+            assert_eq!(bounded.meta(), full.meta());
+            assert_eq!(bounded.cube().raw(), full.cube().raw());
+            assert_eq!(
+                bounded.shaper().map(|s| s.raw()),
+                full.shaper().map(|s| s.raw())
+            );
+            assert_eq!(bounded.cube().size(), 2);
+        }
+        let one_d =
+            Lut::parse_with_limits(&mut &b"LUT_1D_SIZE 2\n0 0 0\n1 1 1\n"[..], limits).unwrap();
+        assert_eq!(one_d.cube().dim(), 1);
+        assert_eq!(one_d.cube().raw(), &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn limits_can_disable_dimensions_including_shapers() {
+        for (limits, header) in [
+            (
+                crate::ParseLimits {
+                    max_1d_size: 0,
+                    max_3d_size: 256,
+                },
+                "LUT_1D_SIZE 2\n",
+            ),
+            (
+                crate::ParseLimits {
+                    max_1d_size: 0,
+                    max_3d_size: 256,
+                },
+                "LUT_3D_SIZE 2\nLUT_1D_SIZE 2\n",
+            ),
+            (
+                crate::ParseLimits {
+                    max_1d_size: 65535,
+                    max_3d_size: 0,
+                },
+                "LUT_3D_SIZE 2\n",
+            ),
+        ] {
+            assert!(Lut::parse_with_limits(&mut header.as_bytes(), limits).is_err());
+        }
+    }
+
+    #[test]
+    fn full_parsing_rejects_invalid_sizes_without_panicking() {
+        for directive in ["LUT_1D_SIZE", "LUT_3D_SIZE"] {
+            for size in ["0", "1", "65536", "invalid"] {
+                let source = format!("{directive} {size}\n0 0 0\n");
+                assert!(Lut::parse(&mut source.as_bytes()).is_err(), "{source}");
+            }
         }
     }
 
